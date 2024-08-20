@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "1323:1323"
+    depends_on:
+      - pg-container
+    environment:
+      - DATABASE_URL=postgres://gopgtest:secret@pg-container:5432/gopgtest?sslmode=disable
+
+  pg-container:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: gopgtest
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: gopgtest
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:

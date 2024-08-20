@@ -1,54 +1,57 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <title>Vacancy Search</title>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-</head>
-<body>
-  <h1>Vacancy Search</h1>
-  <form id="searchForm">
-    <label for="name">Vacancy Name:</label>
-    <input type="text" id="name" name="name" required><br><br>
-    <label for="clarification">Clarification:</label>
-    <input type="text" id="clarification" name="clarification"><br><br>
-    <label for="salary">Salary:</label>
-    <input type="text" id="salary" name="salary"><br><br>
-    <label for="location">Location:</label>
-    <input type="text" id="location" name="location"><br><br>
-    <input type="submit" value="Search">
-  </form>
-  <div id="results"></div>
+	<head>
+		<title>Vacancy Search</title>
+		<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+	</head>
+	<body>
+		<h1>Vacancy Search</h1>
+		<form id="searchForm">
+			<label for="name">Vacancy Name:</label>
+			<input type="text" id="name" name="name" required><br><br>
+			<label for="clarification">Clarification:</label>
+			<input type="text" id="clarification" name="clarification"><br><br>
+			<label for="salary">Salary:</label>
+			<input type="text" id="salaryfrom" name="salaryfrom"><br><br>
+			<input type="text" id="salaryto" name="salary	to"><br><br>
+			<label for="location">Location:</label>
+			<input type="text" id="location" name="location"><br><br>
+			<input type="submit" value="Search">
+		</form>
+		<div id="results"></div>
 
-  <script>
-    document.getElementById("searchForm").addEventListener("submit", function(event) {
-      event.preventDefault();
-      var vacancyName = document.getElementById("name").value;
-      var clarification = document.getElementById("clarification").value;
-      var salary = document.getElementById("salary").value;
-      var location = document.getElementById("location").value;
+		<script>
+			document.getElementById("searchForm").addEventListener("submit", function(event) {
+				event.preventDefault();
+				var vacancyName = document.getElementById("name").value;
+				var clarification = document.getElementById("clarification").value;
+				var salaryfrom = document.getElementById("salaryfrom").value;
+				var salaryto = document.getElementById("salaryto").value;
+				var location = document.getElementById("location").value;
 
-      axios.post('/search', {
-        name: vacancyName,
-        clarification: clarification,
-        salary: salary,
-        location: location
-      })
-      .then(function (response) {
-        console.log(response.data);
-        var resultsDiv = document.getElementById("results");
-        var existingResults = resultsDiv.querySelectorAll("p");
-        
-        
-        for (var i = 0; i < existingResults.length; i++) {
-            console.log(existingResults[i]);
-            resultsDiv.removeChild(existingResults[i]);
-        }
-        
-        for (var i = 1; i < response.data.length+1; i++) {
-            console.log(response.data[i]);
-            var result = document.createElement("p");
-            result.innerHTML = response.data[i];
-            console.log(result);
+				axios.post('/search', {
+					name: vacancyName,
+					clarification: clarification,
+					salaryfrom: salaryfrom,
+					salaryto: salaryto,
+					location: location
+				})
+					.then(function (response) {
+						console.log(response.data);
+						var resultsDiv = document.getElementById("results");
+						var existingResults = resultsDiv.querySelectorAll("p");
+
+
+						for (var i = 0; i < existingResults.length; i++) {
+							console.log(existingResults[i]);
+							resultsDiv.removeChild(existingResults[i]);
+						}
+
+						for (var i = 1; i < response.data.length+1; i++) {
+							console.log(response.data[i]);
+							var result = document.createElement("p");
+							result.innerHTML = response.data[i];
+							console.log(result);
             resultsDiv.appendChild(result);
         }
       })

@@ -16,30 +16,28 @@ import (
 )
 
 type Data struct {
-	Items    []interface{}`json:"items"`
-	Found    int      `json:"found"`
-	Page     int      `json:"page"`
-	Pages    int      `json:"pages"`
-	Per_page int8      `json:"per_page"`
+	Items    []interface{} `json:"items"`
+	Found    int           `json:"found"`
+	Page     int           `json:"page"`
+	Pages    int           `json:"pages"`
+	Per_page int8          `json:"per_page"`
 }
 
 func main() {
-	connStr := "postgres://postgres:secret@localhost:5432/gopgtest?sslmode=disable"
-		db, err := sql.Open("postgres", connStr)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer db.Close()
+	connStr := "postgres://gopgtest:secret@pg-container:5432/gopgtest?sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
-		if err = db.Ping(); err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("Successfully connected!")
+	if err = db.Ping(); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Successfully connected!")
 
-		createVacancyTable(db)
+	createVacancyTable(db)
 
-		
-	
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
 
@@ -47,10 +45,11 @@ func main() {
 	})
 
 	type SearchRequest struct {
-		Name string `json:"name"`
+		Name          string `json:"name"`
 		Clarification string `json:"clarification"`
-		Salary string `json:"salary"`
-		Location string `json:"location"`
+		SalaryFrom    string `json:"salaryfrom"`
+		SalaryTo      string `json:"salaryto"`
+		Location      string `json:"location"`
 	}
 	e.POST("/search", func(c echo.Context) error {
 
@@ -64,73 +63,72 @@ func main() {
 			return err
 		}
 		fmt.Println(req)
-	
+
 		return c.JSON(http.StatusOK, callToDB(db, req.Name))
 	})
 	e.Logger.Fatal(e.Start(":1323"))
-	
-	
 
 }
 func callToDB(db *sql.DB, str string) map[string]interface{} {
 	reqStr := fmt.Sprintf("https://api.hh.ru/vacancies?text=%s&per_page=15", str)
 	req, err := http.NewRequest("GET", reqStr, nil)
-if err != nil {
-	log.Fatal(err)
-}
-
-
-
-req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
-client := &http.Client{}
-resp, err := client.Do(req)
-fmt.Println(resp)
-fmt.Println(resp.StatusCode)
-if err != nil {
-	log.Fatal(err)
-}
-defer resp.Body.Close()
-
-body, err := io.ReadAll(resp.Body)
-if err != nil {
-	log.Fatal(err)
-}
-var data Data
-json.Unmarshal(body, &data)
-pk := insertVacancy(db, data)
-
-
-var max int
-query := `SELECT * FROM vacancy WHERE id = $1`
-length  := db.QueryRow(`SELECT MAX(id) FROM vacancy`).Scan(&max)
-if length != nil {
-	log.Fatal(length)
-}
-var name string
-var salary string
-var area string
-var url string
-var l = make(map[string]interface{})
-for i := 1; i < max+1; i++ {
-	err = db.QueryRow(query, i).Scan(&pk, &name, &salary, &area, &url)
 	if err != nil {
 		log.Fatal(err)
 	}
-	l[strconv.FormatInt(int64(i),8)] = map[string]interface{}{"name": name, "salary": salary, "area": area, "url": url}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	fmt.Println(resp)
+	fmt.Println(resp.StatusCode)
 	if err != nil {
-		   log.Fatal(err)
+		log.Fatal(err)
 	}
-	
-}
-fmt.Println(l)
-return l
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var data Data
+	json.Unmarshal(body, &data)
+
+	insertVacancy(db, data)
+
+	var max int
+	query := `SELECT * FROM vacancy WHERE id = $1`
+	length := db.QueryRow(`SELECT MAX(id) FROM vacancy`).Scan(&max)
+	if length != nil {
+		log.Fatal(length)
+	}
+	var pk int
+	var name string
+	var salaryfrom string
+	var salaryto string
+	var area string
+	var url string
+	var l = make(map[string]interface{})
+	for i := 1; i < max+1; i++ {
+		err = db.QueryRow(query, i).Scan(&pk, &name, &salaryfrom, &salaryto, &area, &url)
+		if err != nil {
+			log.Fatal(err)
+		}
+		l[strconv.FormatInt(int64(i), 8)] = map[string]interface{}{"name": name, "salaryfrom": salaryfrom, "salaryto": salaryto, "area": area, "url": url}
+		if err != nil {
+			log.Fatal(err)
+		}
+
+	}
+	fmt.Println(l)
+	return l
 }
 
 func createVacancyTable(db *sql.DB) {
 	query := `CREATE TABLE IF NOT EXISTS "vacancy" (
 		"id" SERIAL PRIMARY KEY,
 		"name" VARCHAR(255) NOT NULL,
-		"salary" VARCHAR(255) NOT NULL,
+		"salaryfrom" VARCHAR(255) NOT NULL,
+		"salaryto" VARCHAR(255) NOT NULL,
 		"area" VARCHAR(255) NOT NULL,
 		"vacancy_url" VARCHAR(255) NOT NULL
 		);`
@@ -141,99 +139,101 @@ func createVacancyTable(db *sql.DB) {
 	}
 }
 
-func insertVacancy(db *sql.DB, data Data) int {
+func insertVacancy(db *sql.DB, data Data) {
 	db.Exec(`TRUNCATE TABLE "vacancy" CASCADE;
 	ALTER SEQUENCE vacancy_id_seq RESTART WITH 1`)
-	var pk int
+
 	for _, arr := range data.Items {
-	 if item, ok := arr.(map[string]interface{}); ok {
-	  name, ok := item["name"].(string)
-	  if !ok {
-	   log.Println("Error converting name to string")
-	   continue
-	  }
-   
-	  salary := item["salary"]
-   var salaryFrom, salaryTo, salaryCurrency string
-   switch salary.(type) {
-   case nil:
-    // Handle the case where salary is null
-    salaryFrom = ""
-    salaryTo = ""
-    salaryCurrency = ""
-   case map[string]interface{}:
-    salaryMap := salary.(map[string]interface{})
+		if item, ok := arr.(map[string]interface{}); ok {
+			name, ok := item["name"].(string)
+			if !ok {
+				log.Println("Error converting name to string")
+				continue
+			}
 
-    if salaryFromVal, ok := salaryMap["from"]; ok {
-     switch salaryFromVal.(type) {
-     case float64:
-      salaryFrom = strconv.FormatFloat(salaryFromVal.(float64), 'f', -1, 64)
-     case int:
-      salaryFrom = strconv.Itoa(salaryFromVal.(int))
-	 case nil:
-		salaryTo = ""
-     default:
-      log.Println("Invalid type for salary from")
-      continue
-     }
-    }
+			salary := item["salary"]
+			var salaryFrom, salaryTo, salaryCurrency string
+			switch salary.(type) {
+			case nil:
+				// Handle the case where salary is null
+				salaryFrom = ""
+				salaryTo = ""
+				salaryCurrency = ""
+			case map[string]interface{}:
+				salaryMap := salary.(map[string]interface{})
 
-    if salaryToVal, ok := salaryMap["to"]; ok {
-     switch salaryToVal.(type) {
-     case float64:
-      salaryTo = strconv.FormatFloat(salaryToVal.(float64), 'f', -1, 64)
-     case int:
-      salaryTo = strconv.Itoa(salaryToVal.(int))
-     case nil:
-      salaryTo = ""
-     default:
-      log.Println("Invalid type for salary to")
-      continue
-     }
-    }
+				if salaryFromVal, ok := salaryMap["from"]; ok {
+					switch salaryFromVal.(type) {
+					case float64:
+						salaryFrom = strconv.FormatFloat(salaryFromVal.(float64), 'f', -1, 64)
+					case int:
+						salaryFrom = strconv.Itoa(salaryFromVal.(int))
+					case nil:
+						salaryTo = ""
+					default:
+						log.Println("Invalid type for salary from")
+						continue
+					}
+				}
 
-	if salaryCurrencyVal, ok := salaryMap["currency"]; ok{
-	switch salaryMap["currency"].(type) { 
-	case string:
-		salaryCurrency = salaryCurrencyVal.(string)
-	default:
-		log.Println("Invalid type for salary currency")
-		continue
+				if salaryToVal, ok := salaryMap["to"]; ok {
+					switch salaryToVal.(type) {
+					case float64:
+						salaryTo = strconv.FormatFloat(salaryToVal.(float64), 'f', -1, 64)
+					case int:
+						salaryTo = strconv.Itoa(salaryToVal.(int))
+					case nil:
+						salaryTo = ""
+					default:
+						log.Println("Invalid type for salary to")
+						continue
+					}
+				}
+
+				if salaryCurrencyVal, ok := salaryMap["currency"]; ok {
+					switch salaryMap["currency"].(type) {
+					case string:
+						salaryCurrency = salaryCurrencyVal.(string)
+					default:
+						log.Println("Invalid type for salary currency")
+						continue
+					}
+				}
+				if !ok {
+					log.Println("Error converting salary currency to string")
+					continue
+				}
+
+				area, ok := item["area"].(map[string]interface{})
+				if !ok {
+					log.Println("Error converting area to map")
+					continue
+				}
+
+				areaName, ok := area["name"].(string)
+				if !ok {
+					log.Println("Error converting area name to string")
+					continue
+				}
+
+				alternate_url, ok := item["alternate_url"].(string)
+				if !ok {
+					log.Println("Error converting alternative URL to string")
+					continue
+				}
+				fmt.Println("Inserting data: ", name, salaryFrom, salaryTo, areaName, alternate_url)
+
+				query := `INSERT INTO "vacancy" ("name", "salaryfrom", "salaryto", "area", "vacancy_url") VALUES ($1, $2, $3, $4, $5)`
+
+				fmt.Println("Inserted")
+
+				err := db.QueryRow(query, name, salaryFrom+salaryCurrency, salaryTo+salaryCurrency, areaName, alternate_url)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+			}
+		}
 	}
-	}	
-    if !ok {
-     log.Println("Error converting salary currency to string")
-     continue
-    }
-   
-	  area, ok := item["area"].(map[string]interface{})
-	  if !ok {
-	   log.Println("Error converting area to map")
-	   continue
-	  }
-   
-	  areaName, ok := area["name"].(string)
-	  if !ok {
-	   log.Println("Error converting area name to string")
-	   continue
-	  }
-   
-	  alternate_url, ok := item["alternate_url"].(string)
-	  if !ok {
-	   log.Println("Error converting alternative URL to string")
-	   continue
-	  }
-   
-	  query := `INSERT INTO "vacancy" ("name", "salary", "area", "vacancy_url") VALUES ($1, $2, $3, $4) RETURNING id`
-	  err := db.QueryRow(query, name, salaryFrom+"-"+salaryTo+salaryCurrency, areaName, alternate_url).Scan(&pk)
-	  if err != nil {
-	   log.Println(err)
-	   continue
-	  }
-	 }
-	}
-	}		
-	return pk
+
 }
-	
-
